@@ -9,6 +9,7 @@ data State = State { player :: Player
                  , girl :: Girl
                  , chara :: [Chara]
                  , enemy :: [Enemy]
+                 , eList :: [Int]
                  , event :: Int
                  , file :: Int
                  } deriving (Show)
@@ -40,7 +41,7 @@ initiate = do
                    , pl_life = 10}
     let g = Girl { gl_name = (if name_g=="" then "のこ" else name_g)
                  , friendship = 1}
-    let state = State {player = p, girl = g, chara = [], enemy = [], event = 0, file = 0} 
+    let state = State {player = p, girl = g, chara = [], enemy = [], eList = [], event = 0, file = 0} 
     putStrLn ( (pl_name p)++" と "++(gl_name g)++" は 仲良しです" )
     return state
 
@@ -52,9 +53,10 @@ routine :: State -> IO State
 routine state = do
     clearScreen
     el <- readEvent (files (file state)) (event state)
-    exeEvent state Normal "" el
-    let p = (player state) { pl_life = (pl_life $ player state)-1 }
-    let newState = state {player = p, event=(event state)+1}
+    state' <- exeEvent state Normal "" el
+--    print state'
+--    getLine
+    let newState = state' {eList = []}
     if el==[]
       then return newState 
       else routine newState
@@ -64,22 +66,61 @@ readLine state m c [] = ( m, [], [] )
 readLine state m c (x:xs)
     | (m==Normal) && (x=='#') && (xs/=[]) = 
                           case (head xs) of 'n' -> (readLine state Name "" (tail xs))
+                                            'c' -> (readLine state Choice "" [])
                                             _   -> atrd [x] (readLine state m c xs)
     | m==Name && x=='#' = cfst Normal ( atrd (showName state (read c :: Int)) (readLine state Normal c xs) )
+    | m==Choice && x=='#' = cfst Normal (readLine state Normal c xs)
     | m/=Normal = asnd [x] (readLine state m (c++[x]) xs)
     | otherwise = atrd [x] (readLine state m c xs)
 
-exeEvent :: State -> Mode -> String -> [String] -> IO ()
-exeEvent state m c [] = return ()
+exeEvent :: State -> Mode -> String -> [String] -> IO State 
+exeEvent state m c [] 
+    | length (eList state)>0 = return state
+    | otherwise = return nextEvent
+    where nextEvent = state {event=(event state)+1}
 exeEvent state m c (x:xs)
     | m==Choice = do
-          return ()
+          let tp = readLine state m c x
+--          print tp 
+          let cState = if((gfst tp)==Normal)
+                          then state 
+                          else state {eList=(eList state)++[(read (last $ words $ gsnd tp))::Int]}
+--          print cState
+          if((gfst tp)==Normal)
+              then do 
+                  return nextEvent 
+              else do
+                  putStrLn ((show $ length (eList cState))++": "++(head $ words $ gsnd tp))
+                  return nextEvent
+          if((gfst tp)==Normal)
+              then do 
+                  n <- makeChoice (eList cState) 
+                  let newState = cState {event = n}
+--                  print newState 
+--                  getLine
+                  exeEvent newState (gfst tp) (gsnd tp) xs
+              else do
+                  exeEvent cState (gfst tp) (gsnd tp) xs
     | otherwise = do
           let tp = readLine state m c x
-          print tp
-          putStrLn $ gtrd tp
-          getLine
+ --         print tp
+          if((gfst tp)==Normal)
+            then do 
+                putStrLn $ gtrd tp
+                getLine
+                return nextEvent 
+            else return nextEvent 
           exeEvent state (gfst tp) (gsnd tp) xs
+    where nextEvent = state {event=(event state)+1}
+
+makeChoice :: [Int] -> IO Int 
+makeChoice li = do
+    s <- getLine
+    if (s>="1" && s<=(show $ length li))
+        then return (li !! ((read s :: Int)-1))
+        else do
+            putStrLn "先頭の番号を入力してください"
+            makeChoice li
 
 gfst :: (a, b, c) -> a
 gfst (a, _, _) = a
@@ -119,7 +160,6 @@ getEventLines e b (x:xs)
 showName :: State -> Int -> String
 showName state 0 = pl_name $ player state
 showName state 1 = gl_name $ girl state
-showName state 12 = "ごりら"
 
 main :: IO ()
 main = do
