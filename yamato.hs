@@ -54,8 +54,6 @@ routine state = do
     clearScreen
     el <- readEvent (files (file state)) (event state)
     state' <- exeEvent state Normal "" el
---    print state'
---    getLine
     let newState = state' {eList = []}
     if el==[]
       then return newState 
@@ -81,29 +79,19 @@ exeEvent state m c []
 exeEvent state m c (x:xs)
     | m==Choice = do
           let tp = readLine state m c x
---          print tp 
           let cState = if((gfst tp)==Normal)
                           then state 
                           else state {eList=(eList state)++[(read (last $ words $ gsnd tp))::Int]}
---          print cState
-          if((gfst tp)==Normal)
-              then do 
-                  return nextEvent 
-              else do
-                  putStrLn ((show $ length (eList cState))++": "++(head $ words $ gsnd tp))
-                  return nextEvent
           if((gfst tp)==Normal)
               then do 
                   n <- makeChoice (eList cState) 
                   let newState = cState {event = n}
---                  print newState 
---                  getLine
                   exeEvent newState (gfst tp) (gsnd tp) xs
               else do
+                  putStrLn ((show $ length (eList cState))++": "++(head $ words $ gsnd tp))
                   exeEvent cState (gfst tp) (gsnd tp) xs
     | otherwise = do
           let tp = readLine state m c x
- --         print tp
           if((gfst tp)==Normal)
             then do 
                 putStrLn $ gtrd tp
