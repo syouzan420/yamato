@@ -9,6 +9,7 @@ data State = State { player :: Player
                  , girl :: Girl
                  , chara :: [Chara]
                  , enemy :: [Enemy]
+                 , mode :: Mode
                  , eList :: [Int]
                  , event :: Int
                  , file :: Int
@@ -41,7 +42,8 @@ initiate = do
                    , pl_life = 10}
     let g = Girl { gl_name = (if name_g=="" then "のこ" else name_g)
                  , friendship = 1}
-    let state = State {player = p, girl = g, chara = [], enemy = [], eList = [], event = 0, file = 0} 
+    let state = State {player = p, girl = g, chara = [], enemy = [],
+                       mode = Normal, eList = [], event = 0, file = 0} 
     putStrLn ( (pl_name p)++" と "++(gl_name g)++" は 仲良しです" )
     return state
 
@@ -54,7 +56,7 @@ routine state = do
     clearScreen
     el <- readEvent (files (file state)) (event state)
     state' <- exeEvent state Normal "" el
-    let newState = state' {eList = []}
+    let newState = state' {mode = Normal, eList = []}
     if el==[]
       then return newState 
       else routine newState
@@ -64,16 +66,19 @@ readLine state m c [] = ( m, [], [] )
 readLine state m c (x:xs)
     | (m==Normal) && (x=='#') && (xs/=[]) = 
                           case (head xs) of 'n' -> (readLine state Name "" (tail xs))
+                                            'j' -> (readLine state Jump "" (tail xs))
                                             'c' -> (readLine state Choice "" [])
                                             _   -> atrd [x] (readLine state m c xs)
     | m==Name && x=='#' = cfst Normal ( atrd (showName state (read c :: Int)) (readLine state Normal c xs) )
+    | m==Jump && x=='#' = readLine state Jump c xs
     | m==Choice && x=='#' = cfst Normal (readLine state Normal c xs)
     | m/=Normal = asnd [x] (readLine state m (c++[x]) xs)
     | otherwise = atrd [x] (readLine state m c xs)
 
 exeEvent :: State -> Mode -> String -> [String] -> IO State 
 exeEvent state m c [] 
-    | length (eList state)>0 = return state
+    | (mode state)==Jump = return state
+    | (mode state)==Choice = return state
     | otherwise = return nextEvent
     where nextEvent = state {event=(event state)+1}
 exeEvent state m c (x:xs)
@@ -85,7 +90,7 @@ exeEvent state m c (x:xs)
           if((gfst tp)==Normal)
               then do 
                   n <- makeChoice (eList cState) 
-                  let newState = cState {event = n}
+                  let newState = cState {mode = Choice, event = n}
                   exeEvent newState (gfst tp) (gsnd tp) xs
               else do
                   putStrLn ((show $ length (eList cState))++": "++(head $ words $ gsnd tp))
@@ -96,10 +101,14 @@ exeEvent state m c (x:xs)
             then do 
                 putStrLn $ gtrd tp
                 getLine
-                return nextEvent 
-            else return nextEvent 
-          exeEvent state (gfst tp) (gsnd tp) xs
-    where nextEvent = state {event=(event state)+1}
+                exeEvent state (gfst tp) (gsnd tp) xs
+            else if((gfst tp)==Jump)
+                    then do
+                      let je = read (gsnd tp) :: Int
+                      let jState = state {mode = Jump, event = je}
+                      exeEvent jState (gfst tp) (gsnd tp) xs
+                    else do
+                      exeEvent state (gfst tp) (gsnd tp) xs
 
 makeChoice :: [Int] -> IO Int 
 makeChoice li = do
